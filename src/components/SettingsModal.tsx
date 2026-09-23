@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Settings, RotateCcw, Save, ShieldAlert, Sparkles } from 'lucide-react';
+import { X, Settings, RotateCcw, Save, ShieldAlert, Sparkles, KeyRound, Lock } from 'lucide-react';
 import { StallSettings } from '../types';
 
 interface SettingsModalProps {
@@ -8,6 +8,7 @@ interface SettingsModalProps {
   settings: StallSettings;
   onSave: (newSettings: StallSettings) => void;
   onResetToDemoData: () => void;
+  onOpenVendorPins?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -16,6 +17,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSave,
   onResetToDemoData,
+  onOpenVendorPins,
 }) => {
   const [formData, setFormData] = useState<StallSettings>({ ...settings });
 
@@ -225,6 +227,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
+          </div>
+
+          {/* Security & Access PINs */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Security &amp; Vendor Access PINs</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Configure lock screen PINs so vendors can only access their own sales and statements.
+                </p>
+              </div>
+
+              {onOpenVendorPins && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenVendorPins();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-700 transition shrink-0"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Configure Vendor PINs</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Reset button */}

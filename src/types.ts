@@ -1,3 +1,16 @@
+export type UserRole = 'owner' | 'vendor';
+
+export interface AuthSession {
+  role: UserRole;
+  vendorName?: string; // Set when role === 'vendor'
+  authenticatedAt: number;
+}
+
+export interface StallSecurityConfig {
+  ownerPin: string; // Master PIN for stall owner (default '0907')
+  vendorPins: Record<string, string>; // Mapping of vendorName -> PIN (e.g. 'Pete' -> '1001')
+}
+
 export interface StallSettings {
   stallName: string;
   ownerName: string;
@@ -33,6 +46,7 @@ export interface VendorEntry {
   paymentDate?: string;
   paymentReference?: string;
   notes?: string;
+  pin?: string; // Optional vendor-specific PIN
 }
 
 export interface WeekLedger {

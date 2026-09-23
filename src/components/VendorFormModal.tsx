@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calculator, ArrowRight, HelpCircle, AlertCircle, PlusCircle } from 'lucide-react';
+import { X, Calculator, ArrowRight, HelpCircle, AlertCircle, PlusCircle, KeyRound } from 'lucide-react';
 import { StallSettings, VendorEntry } from '../types';
 import { calculateVendorFinancials, formatCurrency } from '../utils/calculations';
 
@@ -144,18 +144,36 @@ export const VendorFormModal: React.FC<VendorFormModalProps> = ({
             </div>
           </div>
 
-          {/* Contact Info */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Contact Info / Phone / Email (Optional, for PDF statement)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. vendor@pokemoncards.com or 07700 900123"
-              value={formData.contactInfo || ''}
-              onChange={(e) => setFormData({ ...formData, contactInfo: e.target.value })}
-              className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-            />
+          {/* Contact Info and Portal Access PIN */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Contact Info / Phone / Email (Optional, for PDF statement)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. vendor@pokemoncards.com or 07700 900123"
+                value={formData.contactInfo || ''}
+                onChange={(e) => setFormData({ ...formData, contactInfo: e.target.value })}
+                className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                <span>Portal PIN</span>
+              </label>
+              <input
+                type="text"
+                maxLength={8}
+                placeholder="4-digit PIN"
+                value={formData.pin || ''}
+                onChange={(e) => setFormData({ ...formData, pin: e.target.value.replace(/\D/g, '').slice(0, 8) })}
+                className="w-full px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-mono font-bold tracking-widest text-center"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Vendor login PIN</span>
+            </div>
           </div>
 
           {/* Primary Financial Inputs Box */}

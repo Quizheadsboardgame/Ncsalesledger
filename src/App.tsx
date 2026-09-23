@@ -19,7 +19,7 @@ import {
   AlertCircle,
   CloudCheck
 } from 'lucide-react';
-import { StallSettings, VendorEntry, WeekLedger } from './types';
+import { AuthSession, StallSecurityConfig, StallSettings, VendorEntry, WeekLedger } from './types';
 import { 
   loadSettings, 
   saveSettings, 
@@ -28,7 +28,13 @@ import {
   copyVendorsFromWeek, 
   getCleanInitialLedger,
   subscribeToCloudSettings,
-  subscribeToCloudWeekLedger
+  subscribeToCloudWeekLedger,
+  loadSecurityConfigLocal,
+  saveSecurityConfig,
+  subscribeToCloudSecurityConfig,
+  loadAuthSession,
+  saveAuthSession,
+  clearAuthSession
 } from './utils/storage';
 import { getISOWeekAndYear } from './utils/dateUtils';
 import { calculateConsolidatedSummary, formatCurrency } from './utils/calculations';
@@ -43,9 +49,14 @@ import { VendorFormModal } from './components/VendorFormModal';
 import { VendorStatementModal } from './components/VendorStatementModal';
 import { ConsolidatedReportModal } from './components/ConsolidatedReportModal';
 import { SettingsModal } from './components/SettingsModal';
+import { LockScreen } from './components/LockScreen';
+import { VendorPortal } from './components/VendorPortal';
+import { VendorPinsModal } from './components/VendorPinsModal';
 
 export default function App() {
   const [settings, setSettings] = useState<StallSettings>(() => loadSettings());
+  const [securityConfig, setSecurityConfig] = useState<StallSecurityConfig>(() => loadSecurityConfigLocal());
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() => loadAuthSession());
 
   // Initialize with current ISO week
   const initialWeekInfo = useMemo(() => getISOWeekAndYear(), []);
@@ -69,6 +80,10 @@ export default function App() {
   const [isConsolidatedModalOpen, setIsConsolidatedModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
+  // Vendor PINs modal state
+  const [isVendorPinsModalOpen, setIsVendorPinsModalOpen] = useState(false);
+  const [pinTargetVendor, setPinTargetVendor] = useState<string | null>(null);
+
   // Toast / notification feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -85,7 +100,15 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Subscribe to Active Week's Cloud Ledger in real-time across devices
+  // 2. Subscribe to Cloud Security & PINs in real-time across devices
+  useEffect(() => {
+    const unsubscribe = subscribeToCloudSecurityConfig((cloudSecurity) => {
+      setSecurityConfig(cloudSecurity);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 3. Subscribe to Active Week's Cloud Ledger in real-time across devices
   useEffect(() => {
     setIsCloudSyncing(true);
     const unsubscribe = subscribeToCloudWeekLedger(year, weekNumber, (cloudLedger) => {
@@ -141,6 +164,19 @@ export default function App() {
       updatedVendors = [...ledger.vendors, vendorData];
       showToast(`Added vendor "${vendorData.vendorName}" to Week ${weekNumber}`);
     }
+
+    // If a custom PIN was assigned in the vendor modal, sync it with securityConfig.vendorPins
+    if (vendorData.pin !== undefined) {
+      const cleanPin = (vendorData.pin || '').trim();
+      const updatedPins = { ...securityConfig.vendorPins };
+      if (cleanPin) {
+        updatedPins[vendorData.vendorName] = cleanPin;
+      }
+      const updatedSecurity = { ...securityConfig, vendorPins: updatedPins };
+      setSecurityConfig(updatedSecurity);
+      saveSecurityConfig(updatedSecurity).catch(console.error);
+    }
+
     updateLedgerState({ ...ledger, vendors: updatedVendors });
   };
 
@@ -188,6 +224,66 @@ export default function App() {
     showToast('Reset week to Pete, Kieron, Roy, Charlie, Connor, and Newton Collectables');
   };
 
+  // Auth & Security handlers
+  const handleUnlock = (session: AuthSession) => {
+    setAuthSession(session);
+    saveAuthSession(session);
+    if (session.role === 'owner') {
+      showToast('Stall unlocked: Full Owner Access');
+    } else {
+      showToast(`Welcome ${session.vendorName}: Viewing your personal statements`);
+    }
+  };
+
+  const handleLock = () => {
+    clearAuthSession();
+    setAuthSession(null);
+    showToast('Stall records locked.');
+  };
+
+  const handleSaveSecurityConfig = async (updatedConfig: StallSecurityConfig) => {
+    setSecurityConfig(updatedConfig);
+    await saveSecurityConfig(updatedConfig);
+    showToast('Vendor PINs & Owner Security synced successfully.');
+  };
+
+  const handleOpenVendorPins = (targetVendorName?: string) => {
+    setPinTargetVendor(targetVendorName || null);
+    setIsVendorPinsModalOpen(true);
+  };
+
+  // -------------------------------------------------------------
+  // VIEW ROUTING BASED ON AUTHENTICATION
+  // -------------------------------------------------------------
+
+  // 1. Lock Screen: If no active session, show lock screen over all information
+  if (!authSession) {
+    return (
+      <LockScreen
+        settings={settings}
+        securityConfig={securityConfig}
+        vendors={ledger.vendors}
+        onUnlock={handleUnlock}
+      />
+    );
+  }
+
+  // 2. Vendor Portal: If logged in as vendor, strictly show their own information only
+  if (authSession.role === 'vendor') {
+    return (
+      <VendorPortal
+        vendorName={authSession.vendorName || ''}
+        settings={settings}
+        year={year}
+        weekNumber={weekNumber}
+        ledger={ledger}
+        onSelectWeek={handleSelectWeek}
+        onLock={handleLock}
+      />
+    );
+  }
+
+  // 3. Owner Dashboard: Full administrative access, consolidated earnings, settings & PIN management
   const summary = calculateConsolidatedSummary(ledger.vendors, settings);
   const curr = settings.currency;
 
@@ -205,6 +301,8 @@ export default function App() {
         }}
         onOpenConsolidatedReport={() => setIsConsolidatedModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenVendorPins={() => handleOpenVendorPins()}
+        onLock={handleLock}
       />
 
       {/* Main Container */}
@@ -304,6 +402,7 @@ export default function App() {
             setIsVendorModalOpen(true);
           }}
           onLoadSampleData={handleResetToDemo}
+          onManagePin={(vendor) => handleOpenVendorPins(vendor.vendorName)}
         />
 
         {/* Informative Guidance on Stall Commission, Trade Deductions, and VAT to Save */}
@@ -395,6 +494,19 @@ export default function App() {
         settings={settings}
         onSave={handleSaveSettings}
         onResetToDemoData={handleResetToDemo}
+        onOpenVendorPins={() => handleOpenVendorPins()}
+      />
+
+      <VendorPinsModal
+        isOpen={isVendorPinsModalOpen}
+        onClose={() => {
+          setIsVendorPinsModalOpen(false);
+          setPinTargetVendor(null);
+        }}
+        securityConfig={securityConfig}
+        vendors={ledger.vendors}
+        onSaveSecurityConfig={handleSaveSecurityConfig}
+        targetVendorName={pinTargetVendor}
       />
 
     </div>

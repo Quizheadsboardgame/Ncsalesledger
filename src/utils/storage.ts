@@ -7,11 +7,13 @@
 
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { StallSettings, VendorEntry, WeekLedger } from '../types';
+import { AuthSession, StallSecurityConfig, StallSettings, VendorEntry, WeekLedger } from '../types';
 import { getISOWeekAndYear } from './dateUtils';
 
 const SETTINGS_KEY = 'pokemon_stall_settings_v2';
 const LEDGERS_KEY = 'pokemon_stall_ledgers_v2';
+const SECURITY_KEY = 'pokemon_stall_security_v1';
+const SESSION_KEY = 'pokemon_stall_auth_session_v1';
 
 export const DEFAULT_VENDOR_NAMES = [
   'Pete',
@@ -21,6 +23,18 @@ export const DEFAULT_VENDOR_NAMES = [
   'Connor',
   'Newton Collectables',
 ];
+
+export const DEFAULT_SECURITY_CONFIG: StallSecurityConfig = {
+  ownerPin: '0907',
+  vendorPins: {
+    'Pete': '1001',
+    'Kieron': '1002',
+    'Roy': '1003',
+    'Charlie': '1004',
+    'Connor': '1005',
+    'Newton Collectables': '1006',
+  },
+};
 
 export const DEFAULT_SETTINGS: StallSettings = {
   stallName: "Newtons Collectables Pokémon Stall",
@@ -337,3 +351,142 @@ export async function copyVendorsFromWeek(
 // Aliases for initial synchronous load
 export const loadSettings = loadSettingsLocal;
 export const getWeekLedger = getWeekLedgerLocal;
+
+// ----------------- SECURITY & PIN CONFIGURATION -----------------
+
+const SECURITY_DOC_REF = doc(db, 'stall_config', 'security_config');
+
+export function loadSecurityConfigLocal(): StallSecurityConfig {
+  try {
+    const raw = localStorage.getItem(SECURITY_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ownerPin: parsed.ownerPin || DEFAULT_SECURITY_CONFIG.ownerPin,
+        vendorPins: { ...DEFAULT_SECURITY_CONFIG.vendorPins, ...(parsed.vendorPins || {}) },
+      };
+    }
+  } catch (e) {
+    console.error('Error reading security config from localStorage:', e);
+  }
+  return DEFAULT_SECURITY_CONFIG;
+}
+
+export function saveSecurityConfigLocal(config: StallSecurityConfig): void {
+  try {
+    localStorage.setItem(SECURITY_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.error('Error saving security config to localStorage:', e);
+  }
+}
+
+/**
+ * Subscribe to cloud security config changes in real-time
+ */
+export function subscribeToCloudSecurityConfig(
+  onData: (config: StallSecurityConfig) => void,
+  onError?: (err: Error) => void
+): () => void {
+  return onSnapshot(
+    SECURITY_DOC_REF,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const cloudData = snapshot.data() as StallSecurityConfig;
+        const merged: StallSecurityConfig = {
+          ownerPin: cloudData.ownerPin || DEFAULT_SECURITY_CONFIG.ownerPin,
+          vendorPins: { ...DEFAULT_SECURITY_CONFIG.vendorPins, ...(cloudData.vendorPins || {}) },
+        };
+        saveSecurityConfigLocal(merged);
+        onData(merged);
+      } else {
+        const current = loadSecurityConfigLocal();
+        setDoc(SECURITY_DOC_REF, current).catch(console.error);
+        onData(current);
+      }
+    },
+    (error) => {
+      console.warn('Firestore security config subscription error:', error);
+      onError?.(error);
+    }
+  );
+}
+
+/**
+ * Save security config to Firestore cloud and local storage
+ */
+export async function saveSecurityConfig(config: StallSecurityConfig): Promise<void> {
+  saveSecurityConfigLocal(config);
+  try {
+    await setDoc(SECURITY_DOC_REF, config, { merge: true });
+  } catch (error) {
+    console.warn('Could not sync security config to cloud:', error);
+  }
+}
+
+// ----------------- AUTH SESSION HELPERS -----------------
+
+export function loadAuthSession(): AuthSession | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      return JSON.parse(raw) as AuthSession;
+    }
+  } catch (e) {
+    console.error('Error loading auth session:', e);
+  }
+  return null;
+}
+
+export function saveAuthSession(session: AuthSession | null): void {
+  try {
+    if (session) {
+      const serialized = JSON.stringify(session);
+      sessionStorage.setItem(SESSION_KEY, serialized);
+      localStorage.setItem(SESSION_KEY, serialized);
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
+    }
+  } catch (e) {
+    console.error('Error saving auth session:', e);
+  }
+}
+
+export function clearAuthSession(): void {
+  saveAuthSession(null);
+}
+
+/**
+ * Verifies an entered PIN against owner PIN or vendor PINs
+ */
+export function verifyEnteredPin(
+  enteredPin: string,
+  config: StallSecurityConfig,
+  currentVendors?: VendorEntry[]
+): { role: 'owner' } | { role: 'vendor'; vendorName: string } | null {
+  const clean = enteredPin.trim();
+  if (!clean) return null;
+
+  // 1. Check Owner PIN (default '0907')
+  const ownerPin = (config.ownerPin || DEFAULT_SECURITY_CONFIG.ownerPin).trim();
+  if (clean === ownerPin) {
+    return { role: 'owner' };
+  }
+
+  // 2. Check vendorPins dictionary
+  const vendorEntry = Object.entries(config.vendorPins || {}).find(([_, pin]) => (pin || '').trim() === clean);
+  if (vendorEntry) {
+    return { role: 'vendor', vendorName: vendorEntry[0] };
+  }
+
+  // 3. Check current week's vendors in case any has a custom vendor.pin
+  if (currentVendors && currentVendors.length > 0) {
+    const matchedVendor = currentVendors.find((v) => v.pin && v.pin.trim() === clean);
+    if (matchedVendor) {
+      return { role: 'vendor', vendorName: matchedVendor.vendorName };
+    }
+  }
+
+  return null;
+}
+

@@ -12,7 +12,8 @@ import {
   Check,
   Clock,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  KeyRound
 } from 'lucide-react';
 import { StallSettings, VendorEntry, WeekLedger } from '../types';
 import { calculateVendorFinancials, formatCurrency } from '../utils/calculations';
@@ -27,6 +28,7 @@ interface VendorLedgerTableProps {
   onPreviewStatement: (vendor: VendorEntry) => void;
   onAddVendor: () => void;
   onLoadSampleData?: () => void;
+  onManagePin?: (vendor: VendorEntry) => void;
 }
 
 export const VendorLedgerTable: React.FC<VendorLedgerTableProps> = ({
@@ -38,6 +40,7 @@ export const VendorLedgerTable: React.FC<VendorLedgerTableProps> = ({
   onPreviewStatement,
   onAddVendor,
   onLoadSampleData,
+  onManagePin,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const curr = settings.currency;
@@ -380,6 +383,18 @@ export const VendorLedgerTable: React.FC<VendorLedgerTableProps> = ({
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+
+                        {/* Manage PIN for vendor */}
+                        {onManagePin && (
+                          <button
+                            onClick={() => onManagePin(vendor)}
+                            type="button"
+                            className="p-1.5 rounded-md text-amber-600 hover:text-amber-800 hover:bg-amber-50 transition"
+                            title={`Set or view PIN for ${vendor.vendorName}`}
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+                        )}
 
                         {/* Edit full details modal */}
                         <button

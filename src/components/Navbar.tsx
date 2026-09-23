@@ -6,7 +6,10 @@ import {
   Coins,
   Cloud,
   CloudOff,
-  RefreshCw
+  RefreshCw,
+  KeyRound,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { StallSettings, WeekLedger } from '../types';
 import { calculateConsolidatedSummary, formatCurrency } from '../utils/calculations';
@@ -18,6 +21,8 @@ interface NavbarProps {
   onOpenNewVendor: () => void;
   onOpenConsolidatedReport: () => void;
   onOpenSettings: () => void;
+  onOpenVendorPins: () => void;
+  onLock: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,6 +32,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewVendor,
   onOpenConsolidatedReport,
   onOpenSettings,
+  onOpenVendorPins,
+  onLock,
 }) => {
   const summary = calculateConsolidatedSummary(ledger.vendors, settings);
   const curr = settings.currency;
@@ -111,6 +118,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Add Vendor</span>
             </button>
 
+            {/* Vendor PINs Management Button */}
+            <button
+              id="vendor-pins-btn"
+              onClick={onOpenVendorPins}
+              type="button"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 hover:border-amber-500/50 transition shadow-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+              title="Manage Vendor PINs & Access"
+            >
+              <KeyRound className="w-4 h-4 text-amber-400" />
+              <span className="hidden md:inline font-medium">Vendor PINs</span>
+            </button>
+
             {/* Settings Button */}
             <button
               id="open-settings-btn"
@@ -120,6 +139,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Stall & VAT Settings"
             >
               <Settings className="w-5 h-5" />
+            </button>
+
+            {/* Lock Screen / Sign Out Button */}
+            <button
+              id="lock-screen-btn"
+              onClick={onLock}
+              type="button"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs font-semibold transition"
+              title="Lock stall records immediately"
+            >
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">Lock</span>
             </button>
           </div>
 
