@@ -1,0 +1,6 @@
+{
+  "name": "Pokemon Stall Sales Ledger",
+  "description": "Weekly sales ledger, vendor payout statements, commission tracking, trade-in deductions, PDF statements, and consolidated VAT report for a Pokémon stall.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
